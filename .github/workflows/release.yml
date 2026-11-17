@@ -1,0 +1,38 @@
+name: Package WordPress plugin
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - coming-soon-password/**
+      - .github/workflows/release.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: coming-soon-password-release
+
+jobs:
+  release:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Package and publish the plugin version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git clone --config advice.detachedHead=false "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY.git" source
+          cd source
+          git checkout --detach "$GITHUB_SHA"
+          plugin=coming-soon-password/coming-soon-password.php
+          php -l "$plugin"
+          version=$(sed -nE 's/^ \* Version: ([0-9]+\.[0-9]+\.[0-9]+)$/\1/p' "$plugin")
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          tag="v$version"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            exit 0
+          fi
+          zip -r coming-soon-password.zip coming-soon-password
+          gh release create "$tag" coming-soon-password.zip --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$tag" --generate-notes
