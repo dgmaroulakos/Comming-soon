@@ -2,9 +2,10 @@
 /**
  * Plugin Name: Coming Soon Password
  * Description: Custom HTML coming-soon page with shared password access.
- * Version: 1.0.0
+ * Version: 1.1.0
  * Requires at least: 6.8
  * Requires PHP: 7.4
+ * Update URI: https://github.com/dgmaroulakos/Comming-soon
  */
 
 namespace ComingSoonPassword;
@@ -17,6 +18,52 @@ const OPTION = 'coming_soon_password_settings';
 const PAGE = 'coming-soon-password';
 const FORM_MARKER = '<!-- coming-soon-access-form -->';
 const ACCESS_DURATION = 12 * HOUR_IN_SECONDS;
+const RELEASE_REPOSITORY = 'https://github.com/dgmaroulakos/Comming-soon';
+
+function github_update( $update, array $plugin_data, string $plugin_file ) {
+	if ( plugin_basename( __FILE__ ) !== $plugin_file ) {
+		return $update;
+	}
+
+	$response = wp_safe_remote_get( 'https://api.github.com/repos/dgmaroulakos/Comming-soon/releases/latest', array(
+		'timeout' => 5,
+		'headers' => array( 'Accept' => 'application/vnd.github+json' ),
+	) );
+	if ( is_wp_error( $response ) || 200 !== wp_remote_retrieve_response_code( $response ) ) {
+		return $update;
+	}
+
+	$release = json_decode( wp_remote_retrieve_body( $response ), true );
+	$tag = $release['tag_name'] ?? '';
+	if ( ! is_string( $tag ) || ! preg_match( '/\Av([0-9]+\.[0-9]+\.[0-9]+)\z/', $tag, $version ) ) {
+		return $update;
+	}
+
+	$package = RELEASE_REPOSITORY . '/releases/download/' . $tag . '/coming-soon-password.zip';
+	foreach ( $release['assets'] ?? array() as $asset ) {
+		if ( 'uploaded' === ( $asset['state'] ?? '' ) && $package === ( $asset['browser_download_url'] ?? '' ) ) {
+			return array(
+				'slug'         => PAGE,
+				'version'      => $version[1],
+				'url'          => RELEASE_REPOSITORY . '/releases/tag/' . $tag,
+				'package'      => $package,
+			);
+		}
+	}
+
+	return $update;
+}
+
+function check_plugin_updates(): void {
+	if ( ! current_user_can( 'update_plugins' ) ) {
+		wp_die( 'Δεν έχετε δικαίωμα ενημέρωσης προσθέτων.', '', array( 'response' => 403 ) );
+	}
+	check_admin_referer( 'csp_check_updates' );
+	wp_clean_plugins_cache();
+	wp_update_plugins();
+	wp_safe_redirect( network_admin_url( 'plugins.php' ), 303 );
+	exit;
+}
 
 function settings(): array {
 	return (array) get_option( OPTION, array() ) + array(
@@ -89,6 +136,13 @@ function render_settings(): void {
 			<?php endif; ?>
 			<?php submit_button(); ?>
 		</form>
+		<?php if ( current_user_can( 'update_plugins' ) ) : ?>
+			<form method="post" action="<?php echo esc_url( admin_url( 'admin-post.php' ) ); ?>">
+				<input type="hidden" name="action" value="csp_check_updates">
+				<?php wp_nonce_field( 'csp_check_updates' ); ?>
+				<button class="button" type="submit">Έλεγχος ενημερώσεων τώρα</button>
+			</form>
+		<?php endif; ?>
 	</div>
 	<?php
 }
@@ -213,6 +267,8 @@ function render_landing_page( string $html, bool $attempted ): void {
 add_action( 'admin_init', __NAMESPACE__ . '\register_settings' );
 add_action( 'admin_init', __NAMESPACE__ . '\gate_admin', 0 );
 add_action( 'admin_menu', __NAMESPACE__ . '\add_settings_page' );
+add_action( 'admin_post_csp_check_updates', __NAMESPACE__ . '\check_plugin_updates' );
 add_action( 'plugins_loaded', __NAMESPACE__ . '\disable_page_cache', 0 );
 add_action( 'template_redirect', __NAMESPACE__ . '\gate_frontend', -100 );
 add_filter( 'rest_authentication_errors', __NAMESPACE__ . '\gate_rest', 110 );
+add_filter( 'update_plugins_github.com', __NAMESPACE__ . '\github_update', 10, 3 );
