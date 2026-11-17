@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Coming Soon Password
  * Description: Custom HTML coming-soon page with shared password access.
- * Version: 1.1.0
+ * Version: 1.1.1
  * Requires at least: 6.8
  * Requires PHP: 7.4
  * Update URI: https://github.com/dgmaroulakos/Comming-soon
@@ -240,13 +240,88 @@ function gate_frontend(): void {
 function render_landing_page( string $html, bool $attempted ): void {
 	ob_start();
 	?>
+	<style>
+		.csp-access-form {
+			box-sizing: border-box;
+			width: min(100%, 28rem);
+			margin: 1.5rem auto;
+			padding: clamp(1rem, 4vw, 1.5rem);
+			border: 1px solid #e2e8f0;
+			border-radius: 1rem;
+			background: #fff;
+			color: #0f172a;
+			box-shadow: 0 12px 32px rgb(15 23 42 / 10%);
+			font: 1rem/1.5 system-ui, sans-serif;
+			text-align: start;
+		}
+
+		.csp-access-form .csp-access-label {
+			display: block;
+			margin: 0 0 .5rem;
+			font-weight: 650;
+		}
+
+		.csp-access-form .csp-access-controls {
+			display: flex;
+			flex-wrap: wrap;
+			gap: .625rem;
+		}
+
+		.csp-access-form .csp-access-input,
+		.csp-access-form .csp-access-submit {
+			box-sizing: border-box;
+			min-height: 3rem;
+			margin: 0;
+			padding: .625rem .875rem;
+			border: 1px solid #94a3b8;
+			border-radius: .625rem;
+			font: inherit;
+		}
+
+		.csp-access-form .csp-access-input {
+			flex: 1 1 12rem;
+			min-width: 0;
+			background: #f8fafc;
+			color: #0f172a;
+		}
+
+		.csp-access-form .csp-access-submit {
+			flex: 1 0 auto;
+			border-color: #1e3a8a;
+			background: #1e3a8a;
+			color: #fff;
+			font-weight: 650;
+			cursor: pointer;
+		}
+
+		.csp-access-form .csp-access-submit:hover {
+			background: #172554;
+		}
+
+		.csp-access-form :is(.csp-access-input, .csp-access-submit):focus-visible {
+			outline: 2px solid #2563eb;
+			outline-offset: 2px;
+		}
+
+		.csp-access-form .csp-access-input[aria-invalid="true"] {
+			border-color: #b91c1c;
+		}
+
+		.csp-access-form .csp-access-error {
+			margin: .625rem 0 0;
+			color: #b91c1c;
+			font-size: .875rem;
+		}
+	</style>
 	<form method="post" action="<?php echo esc_url( home_url( '/' ) ); ?>" class="csp-access-form">
+		<label class="csp-access-label" for="csp-access-password">Κωδικός πρόσβασης</label>
+		<div class="csp-access-controls">
+			<input class="csp-access-input" type="password" id="csp-access-password" name="csp_access_password" autocomplete="current-password" required <?php if ( $attempted ) : ?>aria-invalid="true" aria-describedby="csp-access-error"<?php endif; ?>>
+			<button class="csp-access-submit" type="submit">Είσοδος</button>
+		</div>
 		<?php if ( $attempted ) : ?>
-			<p role="alert">Η πρόσβαση δεν ήταν δυνατή. Ελέγξτε τον κωδικό και δοκιμάστε ξανά.</p>
+			<p class="csp-access-error" id="csp-access-error" role="alert">Η πρόσβαση δεν ήταν δυνατή. Ελέγξτε τον κωδικό και δοκιμάστε ξανά.</p>
 		<?php endif; ?>
-		<label for="csp-access-password">Κωδικός πρόσβασης</label>
-		<input type="password" id="csp-access-password" name="csp_access_password" autocomplete="current-password" required>
-		<button type="submit">Είσοδος</button>
 	</form>
 	<?php
 	$form = ob_get_clean();
