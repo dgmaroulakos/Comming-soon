@@ -2,7 +2,7 @@
 /**
  * Plugin Name: Coming Soon Password
  * Description: Custom HTML coming-soon page with shared password access.
- * Version: 1.1.1
+ * Version: 1.2.0
  * Requires at least: 6.8
  * Requires PHP: 7.4
  * Update URI: https://github.com/dgmaroulakos/Comming-soon
@@ -132,7 +132,7 @@ function render_settings(): void {
 			<?php if ( current_user_can( 'unfiltered_html' ) ) : ?>
 				<p><label for="csp-html"><strong>HTML σελίδας</strong></label></p>
 				<textarea id="csp-html" name="<?php echo esc_attr( OPTION ); ?>[html]" class="large-text code" rows="16" spellcheck="false"><?php echo esc_textarea( $config['html'] ); ?></textarea>
-				<p class="description">Επικολλήστε HTML ή αφήστε το πεδίο κενό για την προεπιλεγμένη σελίδα. Για να ορίσετε τη θέση της φόρμας, προσθέστε <code><?php echo esc_html( FORM_MARKER ); ?></code> μέσα στο HTML.</p>
+				<p class="description">Επικολλήστε HTML ή αφήστε το πεδίο κενό για την προεπιλεγμένη σελίδα. Το κουμπί εισόδου εμφανίζεται σταθερά δεξιά. Αν έχετε ήδη προσθέσει το <code><?php echo esc_html( FORM_MARKER ); ?></code>, μπορείτε να το διατηρήσετε.</p>
 			<?php endif; ?>
 			<?php submit_button(); ?>
 		</form>
@@ -241,6 +241,110 @@ function render_landing_page( string $html, bool $attempted ): void {
 	ob_start();
 	?>
 	<style>
+		.csp-access-toggle[hidden],
+		.csp-access-panel:not([open]) {
+			display: none;
+		}
+
+		.csp-access-toggle,
+		.csp-access-close {
+			box-sizing: border-box;
+			margin: 0;
+			border: 0;
+			font: 650 1rem/1.25 system-ui, sans-serif;
+			cursor: pointer;
+		}
+
+		.csp-access-toggle {
+			position: fixed;
+			right: max(1rem, env(safe-area-inset-right));
+			bottom: max(1rem, env(safe-area-inset-bottom));
+			z-index: 2147483646;
+			min-height: 3rem;
+			padding: .75rem 1.125rem;
+			border-radius: 999px;
+			background: #1e3a8a;
+			color: #fff;
+			box-shadow: 0 8px 24px rgb(15 23 42 / 22%);
+			animation: csp-fade-in 220ms ease-out;
+			transition: background-color 160ms ease;
+		}
+
+		.csp-access-toggle:hover {
+			background-color: #172554;
+		}
+
+		.csp-access-panel {
+			position: fixed;
+			inset: 0 0 0 auto;
+			box-sizing: border-box;
+			width: min(100%, 26rem);
+			height: 100%;
+			max-width: none;
+			max-height: none;
+			margin: 0;
+			padding: max(1.25rem, env(safe-area-inset-top)) max(1.25rem, env(safe-area-inset-right)) max(1.25rem, env(safe-area-inset-bottom)) 1.25rem;
+			overflow: auto;
+			overscroll-behavior: contain;
+			border: 0;
+			background: #fff;
+			color: #0f172a;
+			box-shadow: -12px 0 40px rgb(15 23 42 / 16%);
+			font: 1rem/1.5 system-ui, sans-serif;
+			text-align: start;
+		}
+
+		.csp-access-panel::backdrop {
+			background: rgb(15 23 42 / 52%);
+			animation: csp-fade-in 220ms ease both;
+		}
+
+		.csp-access-panel.csp-access-closing::backdrop {
+			animation: csp-fade-out 220ms ease both;
+		}
+
+		.csp-access-panel .csp-access-panel-header {
+			display: flex;
+			align-items: center;
+			justify-content: space-between;
+			gap: .75rem;
+			margin-bottom: 1.5rem;
+		}
+
+		.csp-access-panel .csp-access-title {
+			margin: 0;
+			color: inherit;
+			font: 700 1.5rem/1.25 system-ui, sans-serif;
+		}
+
+		.csp-access-panel .csp-access-close {
+			flex: 0 0 2.75rem;
+			min-height: 2.75rem;
+			padding: 0;
+			border-radius: .625rem;
+			background: #f1f5f9;
+			color: #0f172a;
+			font-size: 1.5rem;
+		}
+
+		.csp-access-toggle:focus-visible,
+		.csp-access-panel .csp-access-close:focus-visible {
+			outline: 2px solid #2563eb;
+			outline-offset: 2px;
+		}
+
+		@keyframes csp-fade-in { from { opacity: 0; } to { opacity: 1; } }
+		@keyframes csp-fade-out { from { opacity: 1; } to { opacity: 0; } }
+
+		@media (prefers-reduced-motion: reduce) {
+			.csp-access-toggle,
+			.csp-access-panel::backdrop,
+			.csp-access-panel.csp-access-closing::backdrop {
+				animation: none;
+				transition: none;
+			}
+		}
+
 		.csp-access-form {
 			box-sizing: border-box;
 			width: min(100%, 28rem);
@@ -312,7 +416,22 @@ function render_landing_page( string $html, bool $attempted ): void {
 			color: #b91c1c;
 			font-size: .875rem;
 		}
+
+		.csp-access-panel .csp-access-form {
+			width: 100%;
+			margin: 0;
+			padding: 0;
+			border: 0;
+			box-shadow: none;
+		}
 	</style>
+	<button class="csp-access-toggle" id="csp-access-toggle" type="button" aria-haspopup="dialog" aria-controls="csp-access-panel" hidden>Είσοδος</button>
+	<dialog class="csp-access-panel" id="csp-access-panel" aria-labelledby="csp-access-title">
+		<div class="csp-access-panel-header">
+			<h2 class="csp-access-title" id="csp-access-title">Είσοδος στον ιστότοπο</h2>
+			<button type="button" class="csp-access-close" aria-label="Κλείσιμο">×</button>
+		</div>
+	</dialog>
 	<form method="post" action="<?php echo esc_url( home_url( '/' ) ); ?>" class="csp-access-form">
 		<label class="csp-access-label" for="csp-access-password">Κωδικός πρόσβασης</label>
 		<div class="csp-access-controls">
@@ -323,6 +442,78 @@ function render_landing_page( string $html, bool $attempted ): void {
 			<p class="csp-access-error" id="csp-access-error" role="alert">Η πρόσβαση δεν ήταν δυνατή. Ελέγξτε τον κωδικό και δοκιμάστε ξανά.</p>
 		<?php endif; ?>
 	</form>
+	<script>
+		(() => {
+			const form = document.currentScript.previousElementSibling;
+			const panel = document.getElementById('csp-access-panel');
+			const toggle = document.getElementById('csp-access-toggle');
+			if (!panel || !toggle || !form || typeof panel.showModal !== 'function') {
+				return;
+			}
+
+			const input = form.querySelector('.csp-access-input');
+			const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
+			const shown = { opacity: 1, transform: 'translateX(0)' };
+			const hidden = { opacity: 0, transform: 'translateX(1.5rem)' };
+			let animation;
+			let closing = false;
+
+			panel.append(form);
+			document.body.append(toggle, panel);
+			toggle.hidden = false;
+
+			function openPanel() {
+				if (panel.open) {
+					return;
+				}
+				panel.showModal();
+				input.focus();
+				if (!motion.matches && typeof panel.animate === 'function') {
+					animation = panel.animate([hidden, shown], { duration: 220, easing: 'ease-out' });
+				}
+			}
+
+			function closePanel() {
+				if (!panel.open || closing) {
+					return;
+				}
+				closing = true;
+				const finish = () => {
+					panel.close();
+					panel.classList.remove('csp-access-closing');
+					closing = false;
+					toggle.focus();
+				};
+				if (motion.matches || typeof panel.animate !== 'function') {
+					finish();
+					return;
+				}
+				const style = getComputedStyle(panel);
+				const current = { opacity: style.opacity, transform: style.transform };
+				animation?.cancel();
+				panel.classList.add('csp-access-closing');
+				animation = panel.animate([current, hidden], { duration: 220, easing: 'ease-in' });
+				animation.finished.then(finish, finish);
+			}
+
+			toggle.addEventListener('click', openPanel);
+			panel.querySelector('.csp-access-close').addEventListener('click', closePanel);
+			panel.addEventListener('cancel', event => {
+				event.preventDefault();
+				closePanel();
+			});
+			panel.addEventListener('click', event => {
+				const bounds = panel.getBoundingClientRect();
+				if (event.target === panel && (event.clientX < bounds.left || event.clientX > bounds.right || event.clientY < bounds.top || event.clientY > bounds.bottom)) {
+					closePanel();
+				}
+			});
+
+			if (input.getAttribute('aria-invalid') === 'true') {
+				openPanel();
+			}
+		})();
+	</script>
 	<?php
 	$form = ob_get_clean();
 
